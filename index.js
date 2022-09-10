@@ -97,4 +97,29 @@ app.post("/sign-in", async (req, res) => {
     }
 });
 
+app.post("/sign-out", async (req, res) => {
+    const token = req.headers.authorization;
+    console.log(req.headers);
+
+    try {
+        const userSession = await db.collection("sessions").findOne({ token });
+        if(!userSession) {
+            return res.sendStatus(401);
+        }
+
+        const user = await db.collection("users").findOne({ _id: userSession.userId });
+        if(!user) {
+            return res.sendStatus(401);
+        }
+
+        await db.collection("sessions").deleteOne({ userId: user._id });
+
+        return res.sendStatus(200);
+
+    } catch(error) {
+        console.error(error);
+        return res.status(500).send(error.message);
+    }
+});
+
 app.listen(5000, () => console.log("Listening on port 5000"));
