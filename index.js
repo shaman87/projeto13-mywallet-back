@@ -3,6 +3,7 @@ import cors from "cors";
 import { MongoClient } from "mongodb";
 import joi from "joi";
 import bcrypt from "bcrypt";
+import dayjs from "dayjs";
 import { v4 as uuid } from "uuid";
 import dotenv from "dotenv";
 
@@ -28,7 +29,13 @@ const signUpSchema = joi.object({
 
 const signInSchema = joi.object({
     email: joi.string().empty(" ").email().required(), 
-    password: joi.string().empty().required()
+    password: joi.string().empty(" ").required()
+});
+
+const transactionSchema = joi.object({
+    amount: joi.number().precision(2).required(), 
+    description: joi.string().empty(" ").required(), 
+    type: joi.string().valid("credit", "debit").required()
 });
 
 async function checkAuthorization(req, res, next) {
@@ -43,7 +50,7 @@ async function checkAuthorization(req, res, next) {
     
         const user = await db.collection("users").findOne({ _id: session.userId });
         if(!user) return res.sendStatus(401);
-        
+
         delete user.password;
         res.locals.user = user;
         next();
@@ -132,6 +139,44 @@ app.post("/sign-out", checkAuthorization, async (req, res) => {
     }
 });
 
+app.post("/transactions", checkAuthorization, async (req, res) => {
+    const { user } = res.locals;
+    const { amount, description, type } = req.body;
+    const validation = transactionSchema.validate({ amount, description, type }, { abortEarly: false } );
 
+    if(validation.error) {
+        const errorList = validation.error.details.map(error => error.message);
+        return res.status(422).send(errorList);
+    }
+
+    try {
+        await db.collection("transactions").insertOne({
+            amount, 
+            description, 
+            type, 
+            date: dayjs().format("DD/MM"), 
+            userId: user._id
+        });
+
+        return res.sendStatus(200);
+
+    } catch(error) {
+        console.error(error);
+        return res.status(500).send(error.message);
+    }
+});
+
+app.get("/transactions", checkAuthorization, async (req, res) => {
+    const { user } = res.locals;
+    
+    try {
+        const transactionsList = await db.collection("transactions").find({ userId: user._id }).toArray();
+        return res.status(200).send(transactionsList);
+
+    } catch(error) {
+        console.error(error);
+        return res.status(500).send(error.message);
+    }
+});
 
 app.listen(5000, () => console.log("Listening on port 5000"));
