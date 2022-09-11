@@ -31,6 +31,29 @@ const signInSchema = joi.object({
     password: joi.string().empty().required()
 });
 
+async function checkAuthorization(req, res, next) {
+    const { authorization } = req.headers;
+
+    try {
+        const token = authorization?.replace("Bearer ", "");
+        if(!token) return res.sendStatus(401);
+    
+        const session = await db.collection("sessions").findOne({ token });
+        if(!session) return res.sendStatus(401);
+    
+        const user = await db.collection("users").findOne({ _id: session.userId });
+        if(!user) return res.sendStatus(401);
+        
+        delete user.password;
+        res.locals.user = user;
+        next();
+
+    } catch(error) {
+        console.error(error);
+        return res.sendStatus(500);
+    }
+}
+
 app.post("/sign-up", async (req, res) => {
     const { name, email, password, confirmPassword } = req.body;
     const validation = signUpSchema.validate({ name, email, password, confirmPassword }, { abortEarly: false });
@@ -73,8 +96,7 @@ app.post("/sign-in", async (req, res) => {
     }
 
     try {
-        const user = await db.collection("users").findOne({ email });
-        console.log(user);
+        const user = await db.collection("users").findOne({ email });    
         const passwordIsValid = bcrypt.compareSync(password, user.password);
 
         if(user && passwordIsValid) {
@@ -97,23 +119,11 @@ app.post("/sign-in", async (req, res) => {
     }
 });
 
-app.post("/sign-out", async (req, res) => {
-    const token = req.headers.authorization;
-    console.log(req.headers);
+app.post("/sign-out", checkAuthorization, async (req, res) => {
+    const { user } = res.locals;
 
     try {
-        const userSession = await db.collection("sessions").findOne({ token });
-        if(!userSession) {
-            return res.sendStatus(401);
-        }
-
-        const user = await db.collection("users").findOne({ _id: userSession.userId });
-        if(!user) {
-            return res.sendStatus(401);
-        }
-
         await db.collection("sessions").deleteOne({ userId: user._id });
-
         return res.sendStatus(200);
 
     } catch(error) {
@@ -121,5 +131,7 @@ app.post("/sign-out", async (req, res) => {
         return res.status(500).send(error.message);
     }
 });
+
+
 
 app.listen(5000, () => console.log("Listening on port 5000"));
