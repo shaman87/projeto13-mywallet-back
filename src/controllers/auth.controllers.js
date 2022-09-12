@@ -56,8 +56,7 @@ async function signIn(req, res) {
                 userId: user._id, 
                 token
             });
-
-            res.send(token);
+            res.send({ name: user.name, token});
         } else {
             return res.sendStatus(401);
         }
@@ -70,9 +69,11 @@ async function signIn(req, res) {
 
 async function signOut(req, res) {
     const { user } = res.locals;
+    //const { token } = res.locals;
 
     try {
         await db.collection("sessions").deleteOne({ userId: user._id });
+        //await db.collection("sessions").deleteOne({ token });
         return res.sendStatus(200);
 
     } catch(error) {

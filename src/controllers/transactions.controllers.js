@@ -14,7 +14,7 @@ async function createTransactions(req, res) {
 
     try {
         await db.collection("transactions").insertOne({
-            amount, 
+            amount: Number(amount).toFixed(2), 
             description, 
             type, 
             date: dayjs().format("DD/MM"), 

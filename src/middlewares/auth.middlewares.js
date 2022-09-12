@@ -15,6 +15,7 @@ async function checkAuthorization(req, res, next) {
 
         delete user.password;
         res.locals.user = user;
+        res.locals.token = token;
         next();
 
     } catch(error) {
